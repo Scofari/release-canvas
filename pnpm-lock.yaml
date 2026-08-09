@@ -38,6 +38,9 @@ importers:
       '@release-canvas/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@supabase/supabase-js':
+        specifier: 2.57.4
+        version: 2.57.4
       helmet:
         specifier: 8.1.0
         version: 8.1.0

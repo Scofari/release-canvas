@@ -1,3 +1,6 @@
 import type { NextConfig } from 'next';
-const nextConfig: NextConfig = { reactStrictMode: true, poweredByHeader: false };
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const repoRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
+const nextConfig: NextConfig = { reactStrictMode: true, poweredByHeader: false, turbopack: { root: repoRoot } };
 export default nextConfig;

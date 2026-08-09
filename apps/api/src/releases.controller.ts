@@ -1,11 +1,17 @@
-import { Body, Controller, Get, Param, Patch } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ReleasesService } from './releases.service.js';
+import { BadRequestException, Body, Controller, Get, Headers, Param, Patch, Post, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { canTransitionRelease, releaseStatusSchema } from '@release-canvas/contracts';
+import { z } from 'zod';
+import { SupabaseService } from './supabase.service.js';
 
-@ApiTags('releases')
-@Controller('releases')
+const createReleaseSchema=z.object({workspaceId:z.uuid(),projectId:z.uuid(),name:z.string().trim().min(2).max(120),dueAt:z.iso.datetime().nullable().default(null)});
+
+@ApiTags('releases') @ApiBearerAuth() @Controller('releases')
 export class ReleasesController {
-  constructor(private readonly releases: ReleasesService) {}
-  @Get(':id') @ApiOperation({ summary: 'Get a release visible to the current workspace' }) get(@Param('id') id: string) { return this.releases.find(id); }
-  @Patch(':id/status') @ApiOperation({ summary: 'Move a release through its guarded workflow' }) transition(@Param('id') _id: string, @Body() body: { status?: string }) { return this.releases.transition(body.status ?? ''); }
+  constructor(private readonly db: SupabaseService) {}
+  @Get() async list(@Headers('authorization') authorization:string|undefined,@Query('projectId') projectId?:string){const {client}=await this.db.authenticated(authorization);let query=client.from('releases').select('id,workspace_id,project_id,name,status,version,due_at,approved_at,created_at').order('created_at',{ascending:false});if(projectId)query=query.eq('project_id',projectId);const {data,error}=await query;return this.db.unwrap(data,error);}
+  @Get(':id') async get(@Headers('authorization') authorization:string|undefined,@Param('id') id:string){const {client}=await this.db.authenticated(authorization);const {data,error}=await client.from('releases').select('id,workspace_id,project_id,name,status,version,due_at,approved_at,created_at,artifacts(id,name,artifact_versions(id,version,storage_path,mime_type,byte_size,width,height,created_at)),checklist_items(id,label,completed_at,position)').eq('id',id).single();return this.db.unwrap(data,error);}
+  @Post() async create(@Headers('authorization') authorization:string|undefined,@Body() input:unknown){const body=createReleaseSchema.parse(input);const {client,user}=await this.db.authenticated(authorization);const {data,error}=await client.from('releases').insert({workspace_id:body.workspaceId,project_id:body.projectId,name:body.name,due_at:body.dueAt,created_by:user.id}).select().single();return this.db.unwrap(data,error);}
+  @Patch(':id/status') async transition(@Headers('authorization') authorization:string|undefined,@Param('id') id:string,@Body() input:unknown){const body=z.object({status:releaseStatusSchema,version:z.number().int().positive()}).parse(input);const {client}=await this.db.authenticated(authorization);const {data:current,error:readError}=await client.from('releases').select('status,version').eq('id',id).single();this.db.unwrap(current,readError);if(!current||!canTransitionRelease(current.status,body.status))throw new BadRequestException(`Cannot transition ${current?.status ?? 'unknown'} to ${body.status}`);if(body.status==='approved'){const {count,error:countError}=await client.from('annotations').select('*',{count:'exact',head:true}).eq('status','open').in('artifact_version_id',(await client.from('artifact_versions').select('id,artifacts!inner(release_id)').eq('artifacts.release_id',id)).data?.map(row=>row.id)??[]);if(countError)throw new BadRequestException(countError.message);if((count??0)>0)throw new BadRequestException('Resolve every annotation before approval');}
+    const {data,error}=await client.from('releases').update({status:body.status,version:body.version+1,updated_at:new Date().toISOString(),approved_at:body.status==='approved'?new Date().toISOString():null}).eq('id',id).eq('version',body.version).select().maybeSingle();if(error)throw new BadRequestException(error.message);if(!data)throw new BadRequestException('Release changed in another session; refresh and try again');return data;}
 }
