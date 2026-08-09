@@ -2,9 +2,184 @@
 import { type FormEvent, useEffect, useState } from 'react';
 import Link from 'next/link';
 
-type Review={release:{name:string;status:string;version:number;checklist_items:Array<{id:string;label:string;completed_at:string|null}>};artifactUrl:string|null;annotations:Array<{id:string;x:number;y:number;title:string;body:string;status:string}>;expiresAt:string};
-const endpoint=`${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/guest-review`;
-export function GuestReview({token}:{token:string}){const [review,setReview]=useState<Review|null>(null),[error,setError]=useState(''),[sent,setSent]=useState(false);useEffect(()=>{fetch(`${endpoint}?token=${encodeURIComponent(token)}`).then(async response=>{const body=await response.json();if(!response.ok)throw new Error(body.error);setReview(body)}).catch(reason=>setError(reason instanceof Error?reason.message:'Unable to open review'))},[token]);
- async function decide(event:FormEvent<HTMLFormElement>){event.preventDefault();const form=new FormData(event.currentTarget);const response=await fetch(`${endpoint}?token=${encodeURIComponent(token)}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({decision:form.get('decision'),reviewerName:form.get('reviewerName'),note:form.get('note'),idempotencyKey:crypto.randomUUID()})});const body=await response.json();if(!response.ok){setError(body.error);return}setSent(true)}
- if(error)return <main className="guest-state"><Link className="brand" href="/"><span>R</span> ReleaseCanvas</Link><section><h1>Review unavailable</h1><p>{error}</p></section></main>;if(!review)return <main className="guest-state">Opening secure review…</main>;if(sent)return <main className="guest-state"><Link className="brand" href="/"><span>R</span> ReleaseCanvas</Link><section><div className="eyebrow"><i/> Decision recorded</div><h1>Thank you.</h1><p>Your response is now part of the immutable release history.</p></section></main>;
- return <main className="guest-shell"><header><Link className="brand" href="/"><span>R</span> ReleaseCanvas</Link><div><span>SECURE GUEST REVIEW</span><b>{review.release.status.replace('_',' ')}</b></div></header><section><div className="guest-heading"><div><div className="eyebrow"><i/> Release candidate</div><h1>{review.release.name}</h1><p>Version {review.release.version} · link expires {new Date(review.expiresAt).toLocaleDateString()}</p></div></div><div className="guest-grid"><div className="guest-artifact">{review.artifactUrl?<img src={review.artifactUrl} alt="Interface under review"/>:<div className="empty-artifact">No uploaded artifact is attached yet.</div>}{review.annotations.map((note,index)=><button key={note.id} className={`annotation-pin ${note.status==='resolved'?'resolved':''}`} style={{left:`${Number(note.x)*100}%`,top:`${Number(note.y)*100}%`}} title={note.title}>{index+1}</button>)}</div><aside><h2>Release checks</h2>{review.release.checklist_items.map(item=><p key={item.id}><span>{item.completed_at?'✓':'○'}</span>{item.label}</p>)}<h2>Decision</h2><form onSubmit={decide}><label>Your name<input name="reviewerName" required/></label><label>Optional note<textarea name="note" rows={4}/></label><div><button className="button ghost" name="decision" value="changes_requested">Request changes</button><button className="button primary" name="decision" value="approved">Approve</button></div></form><p role="alert">{error}</p></aside></div></section></main>}
+type Review = {
+  release: {
+    name: string;
+    status: string;
+    version: number;
+    checklist_items: Array<{
+      id: string;
+      label: string;
+      completed_at: string | null;
+    }>;
+  };
+  artifactUrl: string | null;
+  annotations: Array<{
+    id: string;
+    x: number;
+    y: number;
+    title: string;
+    body: string;
+    status: string;
+  }>;
+  expiresAt: string;
+};
+const endpoint = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/guest-review`;
+export function GuestReview({ token }: { token: string }) {
+  const [review, setReview] = useState<Review | null>(null),
+    [error, setError] = useState(''),
+    [sent, setSent] = useState(false);
+  useEffect(() => {
+    fetch(`${endpoint}?token=${encodeURIComponent(token)}`)
+      .then(async (response) => {
+        const body = await response.json();
+        if (!response.ok) throw new Error(body.error);
+        setReview(body);
+      })
+      .catch((reason) =>
+        setError(
+          reason instanceof Error ? reason.message : 'Unable to open review',
+        ),
+      );
+  }, [token]);
+  async function decide(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const response = await fetch(
+      `${endpoint}?token=${encodeURIComponent(token)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          decision: form.get('decision'),
+          reviewerName: form.get('reviewerName'),
+          note: form.get('note'),
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      },
+    );
+    const body = await response.json();
+    if (!response.ok) {
+      setError(body.error);
+      return;
+    }
+    setSent(true);
+  }
+  if (error)
+    return (
+      <main className="guest-state">
+        <Link className="brand" href="/">
+          <span>R</span> ReleaseCanvas
+        </Link>
+        <section>
+          <h1>Review unavailable</h1>
+          <p>{error}</p>
+        </section>
+      </main>
+    );
+  if (!review)
+    return <main className="guest-state">Opening secure review…</main>;
+  if (sent)
+    return (
+      <main className="guest-state">
+        <Link className="brand" href="/">
+          <span>R</span> ReleaseCanvas
+        </Link>
+        <section>
+          <div className="eyebrow">
+            <i /> Decision recorded
+          </div>
+          <h1>Thank you.</h1>
+          <p>Your response is now part of the immutable release history.</p>
+        </section>
+      </main>
+    );
+  return (
+    <main className="guest-shell">
+      <header>
+        <Link className="brand" href="/">
+          <span>R</span> ReleaseCanvas
+        </Link>
+        <div>
+          <span>SECURE GUEST REVIEW</span>
+          <b>{review.release.status.replace('_', ' ')}</b>
+        </div>
+      </header>
+      <section>
+        <div className="guest-heading">
+          <div>
+            <div className="eyebrow">
+              <i /> Release candidate
+            </div>
+            <h1>{review.release.name}</h1>
+            <p>
+              Version {review.release.version} · link expires{' '}
+              {new Date(review.expiresAt).toLocaleDateString()}
+            </p>
+          </div>
+        </div>
+        <div className="guest-grid">
+          <div className="guest-artifact">
+            {review.artifactUrl ? (
+              <img src={review.artifactUrl} alt="Interface under review" />
+            ) : (
+              <div className="empty-artifact">
+                No uploaded artifact is attached yet.
+              </div>
+            )}
+            {review.annotations.map((note, index) => (
+              <button
+                key={note.id}
+                className={`annotation-pin ${note.status === 'resolved' ? 'resolved' : ''}`}
+                style={{
+                  left: `${Number(note.x) * 100}%`,
+                  top: `${Number(note.y) * 100}%`,
+                }}
+                title={note.title}
+              >
+                {index + 1}
+              </button>
+            ))}
+          </div>
+          <aside>
+            <h2>Release checks</h2>
+            {review.release.checklist_items.map((item) => (
+              <p key={item.id}>
+                <span>{item.completed_at ? '✓' : '○'}</span>
+                {item.label}
+              </p>
+            ))}
+            <h2>Decision</h2>
+            <form onSubmit={decide}>
+              <label>
+                Your name
+                <input name="reviewerName" required />
+              </label>
+              <label>
+                Optional note
+                <textarea name="note" rows={4} />
+              </label>
+              <div>
+                <button
+                  className="button ghost"
+                  name="decision"
+                  value="changes_requested"
+                >
+                  Request changes
+                </button>
+                <button
+                  className="button primary"
+                  name="decision"
+                  value="approved"
+                >
+                  Approve
+                </button>
+              </div>
+            </form>
+            <p role="alert">{error}</p>
+          </aside>
+        </div>
+      </section>
+    </main>
+  );
+}
