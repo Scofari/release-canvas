@@ -10,3 +10,10 @@ test-results
 *.tsbuildinfo
 .railway-login.*
 .vercel-login.*
+.railway-*
+.vercel-*
+.active-login-files
+.vercel
+
+.vercel
+.env*.local

@@ -2,6 +2,10 @@
 
 ReleaseCanvas is a release-review workspace for agencies and product teams. Teams upload interface screenshots, pin precise feedback, resolve issues, and record an auditable approval decision before shipping.
 
+**[Open the live product](https://release-canvas.vercel.app)** · **[Explore the recruiter demo](https://release-canvas.vercel.app/demo)** · **[API health](https://release-canvas-api-production.up.railway.app/v1/health)**
+
+![ReleaseCanvas annotated review workspace](docs/screenshots/recruiter-demo.png)
+
 ## Why this exists
 
 Feedback scattered across chat, email, and meetings is difficult to reconcile. ReleaseCanvas puts the artifact, discussion, checklist, and final decision in one accessible workflow.
@@ -23,6 +27,8 @@ flowchart LR
 - `packages/contracts`: shared Zod contracts and release state machine
 - `supabase/migrations`: authoritative schema, RLS, and storage policies
 
+Production runs on Vercel (web), Railway (Dockerized API), and Supabase (Postgres, Auth, private Storage, and the guest-review Edge Function).
+
 ## Local development
 
 1. Copy `.env.example` to `.env` and add local Supabase values.
@@ -35,9 +41,13 @@ The web app includes a populated recruiter demo. Production mutations require au
 
 All tenant records carry `workspace_id`. The API validates JWT claims and membership, while Postgres RLS provides defense in depth. Files are private and accessed through short-lived signed URLs. Guest tokens are stored only as hashes.
 
-## Current milestone
+## Production status
 
-This repository contains the production foundation and an interactive vertical slice. Hosted services, email delivery, customer interviews, and public launch remain explicit release gates.
+The landing page, recruiter demo, authenticated workspace, private upload flow, annotations, checklists, share links, and immutable guest decisions are deployed. CI validates linting, types, tests, builds, migrations, and database linting. Customer interviews and payment collection remain deliberately outside the technical MVP.
+
+### Responsive review
+
+![ReleaseCanvas mobile review experience](docs/screenshots/mobile-demo.png)
 
 ## Tradeoffs
 
