@@ -19,7 +19,11 @@ Deno.serve(async(request)=>{
  }
  if(request.method==='POST'){
   const body=await request.json().catch(()=>null) as null|{decision?:string;reviewerName?:string;note?:string;idempotencyKey?:string};if(!body||!['approved','changes_requested'].includes(body.decision??'')||!body.reviewerName?.trim()||!body.idempotencyKey)return json({error:'Invalid decision'},400);
-  const {data:release}=await supabase.from('releases').select('status').eq('id',share.release_id).single();if(release?.status!=='in_review')return json({error:'This release is no longer awaiting review'},409);
+  const {data:release}=await supabase.from('releases').select('status,artifacts(artifact_versions(id))').eq('id',share.release_id).single();if(release?.status!=='in_review')return json({error:'This release is no longer awaiting review'},409);
+  if(body.decision==='approved'){
+   const versionIds=(release.artifacts??[]).flatMap((artifact:{artifact_versions?:Array<{id:string}>})=>artifact.artifact_versions??[]).map((version:{id:string})=>version.id);
+   if(versionIds.length){const {count}=await supabase.from('annotations').select('id',{count:'exact',head:true}).in('artifact_version_id',versionIds).neq('status','resolved');if((count??0)>0)return json({error:'Resolve all annotations before approving this release'},409);}
+  }
   const {data:latest}=await supabase.from('approval_requests').select('review_cycle').eq('release_id',share.release_id).order('review_cycle',{ascending:false}).limit(1).maybeSingle();const cycle=(latest?.review_cycle??0)+1;
   const {data:approval,error:requestError}=await supabase.from('approval_requests').insert({workspace_id:share.workspace_id,release_id:share.release_id,review_cycle:cycle,requested_by:(await supabase.from('workspaces').select('owner_id').eq('id',share.workspace_id).single()).data?.owner_id,closed_at:new Date().toISOString()}).select('id').single();if(requestError)return json({error:'Decision could not be recorded'},409);
   const {data:decision,error}=await supabase.from('approval_decisions').insert({workspace_id:share.workspace_id,approval_request_id:approval.id,decision:body.decision,reviewer_name:body.reviewerName.trim(),note:body.note?.trim()||null,idempotency_key:body.idempotencyKey}).select('id,decision,decided_at').single();if(error)return json({error:error.code==='23505'?'Decision was already recorded':'Decision could not be recorded'},error.code==='23505'?409:400);
