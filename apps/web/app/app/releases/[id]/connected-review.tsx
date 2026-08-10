@@ -216,6 +216,27 @@ export function ConnectedReview({ releaseId }: { releaseId: string }) {
       );
     }
   }
+  async function decide(decision: 'approved' | 'changes_requested') {
+    if (!release) return;
+    setBusy(true);
+    try {
+      await request('/approvals', {
+        method: 'POST',
+        body: JSON.stringify({
+          workspaceId: release.workspace_id,
+          releaseId: release.id,
+          decision,
+          idempotencyKey: crypto.randomUUID(),
+        }),
+      });
+      setMessage('Approval recorded in the immutable decision history');
+      await refresh();
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : 'Decision failed');
+    } finally {
+      setBusy(false);
+    }
+  }
   async function share() {
     if (!release) return;
     const link = await request('/share-links', {
@@ -261,9 +282,10 @@ export function ConnectedReview({ releaseId }: { releaseId: string }) {
           {release.status === 'in_review' && (
             <button
               className="button primary"
-              onClick={() => transition('approved')}
+              disabled={busy}
+              onClick={() => decide('approved')}
             >
-              Approve
+              {busy ? 'Recording\u2026' : 'Approve'}
             </button>
           )}
         </div>
